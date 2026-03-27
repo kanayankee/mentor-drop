@@ -265,13 +265,13 @@ export default function HostPage() {
       position: "relative", width: "100%", height: "100vh", overflow: "hidden",
       background: "url('/assets/pc_bg.webp') center/cover no-repeat",
     }}>
-      {/* Lane Grid */}
-      <div style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 5 }}>
+      {/* Lane Grid (背面) */}
+      <div style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 1 }}>
         <LaneGrid laneWidthPercent={12.5} />
       </div>
 
-      {/* Matter.js Canvas */}
-      <div ref={sceneRef} style={{ width: "100%", height: "100%" }} />
+      {/* Matter.js Canvas (前面 - 点線の上) */}
+      <div ref={sceneRef} style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", zIndex: 2 }} />
 
       {/* リロードボタン (右上) */}
       <button
