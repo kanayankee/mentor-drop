@@ -56,3 +56,65 @@ export async function uploadToDrive(fileName: string, buffer: Buffer, mimeType: 
 
   return fileId;
 }
+
+export async function downloadFromDrive(fileId: string): Promise<Buffer | null> {
+  const drive = await getDriveClient();
+
+  async function getById(targetId: string): Promise<Buffer | null> {
+    try {
+      const res = await drive.files.get(
+        {
+          fileId: targetId,
+          alt: "media",
+          supportsAllDrives: true,
+        },
+        {
+          responseType: "arraybuffer",
+        }
+      );
+
+      if (!res.data) {
+        return null;
+      }
+
+      return Buffer.from(res.data as ArrayBuffer);
+    } catch (error) {
+      const status =
+        typeof error === "object" &&
+        error !== null &&
+        "response" in error &&
+        typeof (error as { response?: { status?: number } }).response?.status === "number"
+          ? (error as { response: { status: number } }).response.status
+          : undefined;
+
+      if (status === 404) {
+        return null;
+      }
+
+      throw error;
+    }
+  }
+
+  const direct = await getById(fileId);
+  if (direct) {
+    return direct;
+  }
+
+  // Legacy fallback: older uploads used a local id and Drive file name format.
+  const legacyName = `drop-${fileId}.webp`;
+  const list = await drive.files.list({
+    q: `name = '${legacyName.replace(/'/g, "\\'")}' and trashed = false`,
+    fields: "files(id)",
+    pageSize: 1,
+    includeItemsFromAllDrives: true,
+    supportsAllDrives: true,
+    corpora: "allDrives",
+  });
+
+  const legacyId = list.data.files?.[0]?.id;
+  if (!legacyId) {
+    return null;
+  }
+
+  return getById(legacyId);
+}
