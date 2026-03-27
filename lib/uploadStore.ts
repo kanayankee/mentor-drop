@@ -1,15 +1,17 @@
 import * as fs from "fs";
 import * as path from "path";
 
-// ディスクベースのファイルストア (サーバー再起動でも画像が消えない)
-const UPLOAD_DIR = path.join(process.cwd(), ".uploads");
+// /tmp はVercelサーバーレス環境でも書き込み可能
+const UPLOAD_DIR = path.join("/tmp", ".uploads");
 
-// ディレクトリがなければ作成
-if (!fs.existsSync(UPLOAD_DIR)) {
-  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+function ensureDir() {
+  if (!fs.existsSync(UPLOAD_DIR)) {
+    fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+  }
 }
 
 export function storeFile(fileId: string, buffer: Buffer) {
+  ensureDir();
   const filePath = path.join(UPLOAD_DIR, fileId);
   fs.writeFileSync(filePath, buffer);
 
