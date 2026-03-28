@@ -16,8 +16,11 @@ export function laneCenterX(laneWidth: number, lane: Lane): number {
   return laneWidth * laneIndex + laneWidth / 2;
 }
 
+/** scale=1 のとき、1レーン幅の 0.7 倍 */
+export const BASE_SCALE_RATIO = 0.7;
+
 export function bodySizeFromScale(laneWidth: number, scale: number): { width: number; height: number } {
   const safeScale = clampScale(scale);
-  const width = laneWidth * safeScale;
+  const width = laneWidth * BASE_SCALE_RATIO * safeScale;
   return { width, height: width };
 }

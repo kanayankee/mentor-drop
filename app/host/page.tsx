@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Matter from "matter-js";
-import { LANES } from "@/lib/physics";
+import { LANES, BASE_SCALE_RATIO } from "@/lib/physics";
 import { LaneGrid } from "@/components/LaneGrid";
 
 type PostItem = {
@@ -64,6 +64,7 @@ export default function HostPage() {
   const addedIds = useRef(loadAddedIds());
   const itemMetaRef = useRef(new Map<string, { frameId: string; fileUrl: string; scale: number }>());
   const [isReloading, setIsReloading] = useState(false);
+  const isReloadingRef = useRef(false);
 
   const createBody = useCallback((
     x: number, y: number, itemSize: number, frameId: string,
@@ -84,7 +85,8 @@ export default function HostPage() {
 
   /* ---------- 全投稿リロード ---------- */
   const handleReloadAll = useCallback(async () => {
-    if (!engineRef.current || isReloading) return;
+    if (!engineRef.current || isReloadingRef.current) return;
+    isReloadingRef.current = true;
     setIsReloading(true);
 
     // 既存の非静的ボディを全て削除
@@ -127,7 +129,7 @@ export default function HostPage() {
         const baseX = (laneIndex >= 0 ? laneIndex + 0.5 : 4) * laneWidth;
         const x = baseX + (Math.random() - 0.5) * 20;
         const y = -100 - (i * 60); // 順番に少しずつ上にオフセット
-        const itemSize = laneWidth * item.scale;
+        const itemSize = laneWidth * BASE_SCALE_RATIO * item.scale;
 
         const body = createBody(x, y, itemSize, item.frameId, item.fileUrl, item.id);
         Matter.World.add(world, body);
@@ -138,8 +140,9 @@ export default function HostPage() {
     } catch (err) {
       console.error("Reload error:", err);
     }
+    isReloadingRef.current = false;
     setIsReloading(false);
-  }, [createBody, isReloading]);
+  }, [createBody]);
 
   /* ---------- Physics World Init ---------- */
   useEffect(() => {
@@ -167,8 +170,9 @@ export default function HostPage() {
     const rightWall = Matter.Bodies.rectangle(width + wt / 2, height / 2, wt, height * 2, { isStatic: true, render: { visible: false } });
     Matter.World.add(engine.world, [ground, leftWall, rightWall]);
 
-    // Mouse
+    // Mouse (pixelRatio を合わせないとHiDPIでドラッグ位置がずれる)
     const mouse = Matter.Mouse.create(render.canvas);
+    mouse.pixelRatio = window.devicePixelRatio;
     const mc = Matter.MouseConstraint.create(engine, { mouse, constraint: { stiffness: 0.2, render: { visible: false } } });
     Matter.World.add(engine.world, mc);
     render.mouse = mouse;
@@ -180,7 +184,7 @@ export default function HostPage() {
     const saved = loadPhysicsState();
     for (const s of saved) {
       if (!s.fileUrl) continue;
-      const sz = laneWidth * s.scale;
+      const sz = laneWidth * BASE_SCALE_RATIO * s.scale;
       if (sz <= 0) continue;
       const body = createBody(s.x, s.y, sz, s.frameId, s.fileUrl, s.id, s.angle);
       Matter.Body.setVelocity(body, { x: s.vx, y: s.vy });
@@ -221,7 +225,15 @@ export default function HostPage() {
   useEffect(() => {
     let active = true;
     async function fetchAndDrop() {
-      if (!engineRef.current || !active) return;
+      if (!engineRef.current || !active || isReloadingRef.current) return;
+
+      // World内の既存ボディからaddedIdsを同期 (ホットリロードなどでの不整合防止)
+      const existingLabels = Matter.Composite.allBodies(engineRef.current.world)
+        .filter(b => !b.isStatic)
+        .map(b => b.label);
+      for (const label of existingLabels) {
+        addedIds.current.add(label);
+      }
       try {
         const res = await fetch("/api/posts", { cache: "no-store" });
         if (!res.ok) return;
@@ -247,7 +259,7 @@ export default function HostPage() {
           const baseX = (laneIndex >= 0 ? laneIndex + 0.5 : 4) * laneWidth;
           const x = baseX + (Math.random() - 0.5) * 20;
           const y = -100 - (Math.random() * 200);
-          const itemSize = laneWidth * item.scale;
+          const itemSize = laneWidth * BASE_SCALE_RATIO * item.scale;
           const body = createBody(x, y, itemSize, item.frameId, item.fileUrl, item.id);
           Matter.World.add(world, body);
           addedIds.current.add(item.id);
